@@ -4,7 +4,10 @@ const jwt = require('jsonwebtoken');
 const db = require('./src/db');
 
 const app = express();
-app.use(cors());
+
+// CORS (allow GoodBarber webview + Authorization header)
+app.use(cors({ origin: "*", allowedHeaders: ["Content-Type", "Authorization"] }));
+
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'change-me';
@@ -85,6 +88,4 @@ app.get('/my-payments', requireAuth, requireRole('student'), (req, res) => {
 });
 
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server listening on ${port}`);
-});
+app.listen(port, () => console.log(`Server listening on ${port}`));
