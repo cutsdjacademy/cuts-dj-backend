@@ -47,9 +47,18 @@ CREATE TABLE IF NOT EXISTS announcements (
   message TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+
+-- NEW: Users table for authentication
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  role TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `);
 
-// Seed minimal data
+// Seed minimal data (only if classes table empty)
 const classCount = db.prepare('SELECT COUNT(*) AS c FROM classes').get().c;
 if (classCount === 0) {
   const now = new Date();
@@ -69,13 +78,35 @@ if (classCount === 0) {
     .run(null, 'Welcome', 'Welcome to Cuts DJ Academy!', new Date().toISOString());
 }
 
+// NEW: User management functions
+function createUser({ email, passwordHash, role }) {
+  const createdAt = new Date().toISOString();
+  try {
+    const stmt = db.prepare('INSERT INTO users (email, password_hash, role, created_at) VALUES (?, ?, ?, ?)');
+    const result = stmt.run(email, passwordHash, role, createdAt);
+    return { id: result.lastInsertRowid, email, role };
+  } catch (error) {
+    if (error.message.includes('UNIQUE constraint failed')) {
+      throw new Error('User with this email already exists');
+    }
+    throw error;
+  }
+}
+
+function findUserByEmail(email) {
+  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
+  return stmt.get(email);
+}
+
 // Queries
 function listClasses() {
   return db.prepare('SELECT * FROM classes ORDER BY start_time ASC').all();
 }
+
 function listAnnouncements() {
   return db.prepare('SELECT * FROM announcements ORDER BY created_at DESC').all();
 }
+
 function enroll({ classId, studentId }) {
   const enrolledAt = new Date().toISOString();
   const existing = db.prepare('SELECT id FROM enrollments WHERE class_id = ? AND student_id = ? AND status = ?')
@@ -86,6 +117,7 @@ function enroll({ classId, studentId }) {
   ).run(classId, studentId, 'enrolled', enrolledAt);
   return { ok: true, enrollmentId: info.lastInsertRowid, alreadyEnrolled: false };
 }
+
 function listEnrollmentsForStudent(studentId) {
   return db.prepare(
     `SELECT e.*, c.title, c.start_time, c.end_time, c.instructor
@@ -95,32 +127,11 @@ function listEnrollmentsForStudent(studentId) {
      ORDER BY c.start_time ASC`
   ).all(studentId);
 }
+
 function markAttendance({ classId, studentId, status }) {
   const ts = new Date().toISOString();
   const info = db.prepare(
-    'INSERT INTO attendance (class_id, student_id, status, ts) VALUES (?,?,?,?)'
-  ).run(classId, studentId, status, ts);
-  return { ok: true, id: info.lastInsertRowid, classId, studentId, status, ts };
-}
-function listAttendanceForStudent(studentId) {
-  return db.prepare(
-    `SELECT a.*, c.title, c.start_time
-     FROM attendance a
-     JOIN classes c ON c.id = a.class_id
-     WHERE a.student_id = ?
-     ORDER BY a.ts DESC`
-  ).all(studentId);
-}
-function listPaymentsForStudent(studentId) {
-  return db.prepare('SELECT * FROM payments WHERE student_id = ? ORDER BY id DESC').all(studentId);
-}
+    'INSERT INTO attendance (class_id, student_id极
 
-module.exports = {
-  listClasses,
-  listAnnouncements,
-  enroll,
-  listEnrollmentsForStudent,
-  markAttendance,
-  listAttendanceForStudent,
-  listPaymentsForStudent
-};
+I notice the code got cut off at the end. Let me provide the complete markAttendance function and the rest of the file:
+
