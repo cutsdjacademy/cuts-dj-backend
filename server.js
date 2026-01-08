@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const db = require('./src/db');
 
 const app = express();
@@ -37,13 +38,54 @@ function requireRole(...roles) {
 // Health
 app.get('/', (req, res) => res.send('Cuts DJ Backend running'));
 
-// Demo login
-app.post('/auth/login', (req, res) => {
-  const { userId, role } = req.body || {};
-  if (!userId || !role) return res.status(400).json({ error: 'userId and role are required' });
-  const token = jwt.sign({ uid: userId, role }, JWT_SECRET, { expiresIn: '7d' });
-  res.json({ token });
+// NEW: Secure email/password registration
+app.post('/auth/register', async (req, res) => {
+  const { email, password, role } = req.body || {};
+  if (!email || !password || !role) {
+    return res.status(400).json({ error: 'Email, password, and role are required' });
+  }
+
+  try {
+    const existingUser = db.findUserByEmail(email);
+    if (existingUser) return res.status(400).json({ error: 'User already exists' });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = db.createUser({ email, passwordHash, role });
+
+    res.json({ id: user.id, email: user.email, role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
+
+// NEW: Secure email/password login (replaces demo login)
+app.post('/auth/login', async (req, res) => {
+  const { email, password } = req.body || {};
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  try {
+    const user = db.findUserByEmail(email);
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    if (!isValidPassword) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const token = jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, userId: user.id, role: user.role });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// REMOVED: Demo login endpoint (replaced by secure login above)
+// app.post('/auth/login', (req, res) => {
+//   const { userId, role } = req.body || {};
+//   if (!userId || !role) return res.status(400).json({ error: 'userId and role are required' });
+//   const token = jwt.sign({ uid: userId, role }, JWT_SECRET, { expiresIn: '7d' });
+//   res.json({ token });
+// });
 
 // Classes
 app.get('/classes', requireAuth, (req, res) => {
@@ -59,13 +101,13 @@ app.get('/announcements', requireAuth, (req, res) => {
 app.post('/enroll', requireAuth, requireRole('student'), (req, res) => {
   const { classId } = req.body || {};
   if (!classId) return res.status(400).json({ error: 'classId is required' });
-  const out = db.enroll({ classId, studentId: req.user.uid });
+  const out = db.enroll({ classId, studentId: req.user.userId });
   res.json(out);
 });
 
 // My enrollments (student)
 app.get('/my-enrollments', requireAuth, requireRole('student'), (req, res) => {
-  res.json(db.listEnrollmentsForStudent(req.user.uid));
+  res.json(db.listEnrollmentsForStudent(req.user.userId));
 });
 
 // Attendance (teacher)
@@ -79,12 +121,12 @@ app.post('/attendance', requireAuth, requireRole('teacher'), (req, res) => {
 
 // Attendance (student view)
 app.get('/my-attendance', requireAuth, requireRole('student'), (req, res) => {
-  res.json(db.listAttendanceForStudent(req.user.uid));
+  res.json(db.listAttendanceForStudent(req.user.userId));
 });
 
 // Payments (student)
 app.get('/my-payments', requireAuth, requireRole('student'), (req, res) => {
-  res.json(db.listPaymentsForStudent(req.user.uid));
+  res.json(db.listPaymentsForStudent(req.user.userId));
 });
 
 const port = process.env.PORT || 3000;
