@@ -2,7 +2,7 @@
 // SQLite-based data layer with user authentication support
 
 // Import dependencies
-const sqlite3 = require('sqlite3').verbose();
+const sqlite3 = require('better-sqlite3').verbose();
 const path = require('path');
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
