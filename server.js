@@ -1,3 +1,4 @@
+// server.js
 const express = require('express');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
@@ -155,7 +156,7 @@ app.get('/my-enrollments', requireAuth, requireRole('student'), async (req, res)
   res.json(await db.listEnrollmentsForStudent(req.user.userId));
 });
 
-// Attendance (teacher)
+// Attendance (teacher/admin)
 app.post('/attendance', requireAuth, requireRole('teacher', 'admin'), async (req, res) => {
   const { classId, studentId, status, date } = req.body || {};
   if (!classId || !studentId || !status) {
@@ -172,6 +173,20 @@ app.get('/my-attendance', requireAuth, requireRole('student'), async (req, res) 
 // Payments (student)
 app.get('/my-payments', requireAuth, requireRole('student'), async (req, res) => {
   res.json(await db.listPaymentsForStudent(req.user.userId));
+});
+
+// Payments (admin): create a payment/charge for a student
+app.post('/payments', requireAuth, requireRole('admin'), async (req, res) => {
+  const { studentId, amountCents, currency, status, note } = req.body || {};
+  if (!studentId || !amountCents) {
+    return res.status(400).json({ error: 'studentId and amountCents are required' });
+  }
+  res.json(await db.createPayment({ studentId, amountCents, currency, status, note }));
+});
+
+// Payments (admin): list all payments
+app.get('/payments', requireAuth, requireRole('admin'), async (_req, res) => {
+  res.json(await db.listAllPayments());
 });
 
 // Basic error handler
