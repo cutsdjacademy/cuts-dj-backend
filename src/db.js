@@ -200,7 +200,6 @@ async function getUserById(id) {
 }
 
 async function getUserAuthByIdentifier(identifier) {
-  // identifier can be username OR email
   identifier = normalizeIdentifier(identifier);
   if (!identifier) return null;
 
@@ -329,7 +328,6 @@ async function createClass({ title, description = null, teacherId = null, startA
 
 async function listAnnouncements({ role = 'all' } = {}) {
   await initDb();
-  // show 'all' + targeted role
   return db
     .prepare(
       `SELECT id, title, body, audienceRole, createdAt
@@ -354,9 +352,7 @@ async function createAnnouncement({ title, body, audienceRole = 'all' }) {
 async function enroll({ classId, studentId }) {
   await initDb();
   try {
-    const info = db
-      .prepare(`INSERT INTO enrollments (classId, studentId) VALUES (?, ?)`)
-      .run(classId, studentId);
+    const info = db.prepare(`INSERT INTO enrollments (classId, studentId) VALUES (?, ?)`).run(classId, studentId);
     return db.prepare(`SELECT * FROM enrollments WHERE id = ?`).get(info.lastInsertRowid);
   } catch (err) {
     if (err && (err.code === 'SQLITE_CONSTRAINT_UNIQUE' || String(err.message || '').includes('UNIQUE'))) {
@@ -384,7 +380,6 @@ async function markAttendance({ classId, studentId, status, date }) {
   await initDb();
   const isoDate = date || new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 
-  // Upsert
   const existing = db
     .prepare(`SELECT id FROM attendance WHERE classId = ? AND studentId = ? AND date = ?`)
     .get(classId, studentId, isoDate);
@@ -425,6 +420,20 @@ async function listPaymentsForStudent(studentId) {
        ORDER BY createdAt DESC`
     )
     .all(studentId);
+}
+
+// NEW: Admin list all payments
+async function listAllPayments() {
+  await initDb();
+  return db
+    .prepare(
+      `SELECT p.id, p.studentId, u.username, u.email, u.fullName,
+              p.amountCents, p.currency, p.status, p.note, p.createdAt
+       FROM payments p
+       JOIN users u ON u.id = p.studentId
+       ORDER BY p.createdAt DESC`
+    )
+    .all();
 }
 
 async function createPayment({ studentId, amountCents, currency = 'USD', status = 'pending', note = null }) {
@@ -470,6 +479,7 @@ module.exports = {
   markAttendance,
   listAttendanceForStudent,
   listPaymentsForStudent,
+  listAllPayments, // NEW
   createPayment,
 
   closeDb,
